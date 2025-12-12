@@ -1,6 +1,8 @@
 <?php
 /**
- * GPS 軌跡系統 - V2
+ * GPS 軌跡系統 - 最終優化版 (美化播放按鈕 + 循環播放)
+ * [UPDATE] 1. 美化播放/停止按鈕 (漸層+陰影)
+ * [UPDATE] 2. 播放結束後點擊播放可自動重頭開始
  */
 
 // 1. 安全與 Session 設定
@@ -187,13 +189,37 @@ if (isset($_GET['ajax'])) {
     .segment-item:hover { background: #f9f9f9; }
     .segment-item.active { border-color: var(--primary-color); background: #f0f7ff; color: var(--primary-color); font-weight: 600; }
 
+    /* === Player UI 美化 === */
     #player-card { display: flex; flex-direction: column; gap: 6px; }
     .player-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .btn-icon { background: #f2f2f7; border: none; width: 32px; height: 32px; border-radius: 50%; color: #333; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-    .btn-control { width: 38px; height: 38px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; background: var(--primary-color); cursor: pointer; transition: transform 0.1s; }
-    .btn-control:active { transform: scale(0.95); }
-    .btn-control.stop { background: #ff3b30; width: 32px; height: 32px; font-size: 12px; }
-    .btn-control.playing { background: #ffcc00; color: #000; } 
+    
+    /* 播放控制按鈕美化 */
+    .btn-control { 
+        width: 44px; height: 44px; 
+        border-radius: 50%; border: none; 
+        display: flex; align-items: center; justify-content: center; 
+        font-size: 16px; color: white; 
+        background: linear-gradient(135deg, #007aff, #0056b3); /* 藍色漸層 */
+        box-shadow: 0 4px 10px rgba(0,122,255,0.3); /* 藍色陰影 */
+        cursor: pointer; transition: all 0.2s ease;
+    }
+    .btn-control:active { transform: scale(0.92); box-shadow: 0 2px 5px rgba(0,122,255,0.2); }
+    
+    /* 停止按鈕 (紅色) */
+    .btn-control.stop { 
+        width: 36px; height: 36px; font-size: 14px;
+        background: linear-gradient(135deg, #ff3b30, #d63026);
+        box-shadow: 0 4px 10px rgba(255,59,48,0.3);
+    }
+    
+    /* 播放中狀態 (黃色) */
+    .btn-control.playing { 
+        background: linear-gradient(135deg, #ffcc00, #e6b800); 
+        color: #333;
+        box-shadow: 0 4px 10px rgba(255,204,0,0.3);
+    } 
+
     .slider-container { display: flex; align-items: center; gap: 8px; width: 100%; }
     input[type=range] { flex: 1; height: 4px; border-radius: 2px; background: #d1d1d6; outline: none; -webkit-appearance: none; }
     input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.3); cursor: pointer; margin-top: -7px; }
@@ -343,7 +369,7 @@ function getArrowIcon(cog) {
     const rotation = (cog || 0) - 40; 
     return L.divIcon({
         className: 'arrow-marker',
-        html: `<div style="transform: rotate(${rotation}deg); color: #007aff; font-size: 16px;"><i class="fas fa-location-arrow"></i></div>`,
+        html: `<div style="transform: rotate(${rotation}deg); color: rgba(225, 29, 15, 1); font-size: 16px;"><i class="fas fa-location-arrow"></i></div>`,
         iconSize: [20, 20],
         iconAnchor: [10, 10]
     });
@@ -412,11 +438,9 @@ function switchMode(mode) {
         setTimeout(() => map.invalidateSize(), 300);
     } else {
         const dateInput = document.getElementById('his-date');
-        // 自動填入今天
         if (!dateInput.value) {
             dateInput.valueAsDate = new Date();
         }
-        // 若無資料則自動查詢
         if (segments.length === 0) {
             fetchHistory();
         }
@@ -503,7 +527,7 @@ const Realtime = {
         });
         if (this.pathCoords.length === 0) return;
         
-        if (!polyline) polyline = L.polyline(this.pathCoords, { color: '#007aff', weight: 3, opacity: 0.6 }).addTo(map);
+        if (!polyline) polyline = L.polyline(this.pathCoords, { color: 'rgba(238, 17, 17, 1)', weight: 3, opacity: 0.6 }).addTo(map);
         else polyline.setLatLngs(this.pathCoords);
         
         points.forEach(p => {
@@ -585,11 +609,21 @@ function selectSegment(idx) {
     const seg = segments[idx];
     const latlngs = seg.map(p => [parseFloat(p.lat), parseFloat(p.lng)]);
     if (latlngs.length === 0) return;
+
     enterPlayerMode(`軌跡 ${idx+1}`);
     clearMapLayers();
+    
+    // 繪製軌跡點（紅點/箭頭）
     drawTrackPoints(seg);
-    polyline = L.polyline(latlngs, { color: '#999', weight: 2, dashArray: '5, 5', opacity: 0.5 }).addTo(map);
-    try { map.fitBounds(polyline.getBounds(), { padding: [20, 20] }); } catch(e){}
+    
+    // [修改] 移除繪製軌跡線的程式碼
+    // polyline = L.polyline(latlngs, ...).addTo(map); 
+    
+    // [修改] 改用座標陣列直接計算邊界來調整視角
+    try { 
+        map.fitBounds(L.latLngBounds(latlngs), { padding: [20, 20] }); 
+    } catch(e){}
+    
     player.load(seg);
 }
 
@@ -611,6 +645,13 @@ const player = {
     toggle: function() { this.isPlaying ? this.pause() : this.play(); },
     play: function() {
         if (this.data.length === 0) return;
+        
+        // 自動重播：若在結尾，從頭開始
+        if (this.idx >= this.data.length - 1) {
+            this.idx = 0;
+            this.updateStep();
+        }
+
         this.isPlaying = true;
         this.updateBtn();
         if (!this.timer) this.loop();
