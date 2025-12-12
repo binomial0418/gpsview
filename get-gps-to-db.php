@@ -46,7 +46,42 @@ if ($conn->connect_error) {
     echo "資料庫連線失敗: " . $conn->connect_error;
     exit;
 }
+// ==========================================
+// [新增邏輯] 靜止過濾檢查
+// ==========================================
+if ($spd < 5) {
+    // 查詢該裝置最後 3 筆資料
+    // 注意：這裡假設 log_tim 是時間欄位，或是有 auto_increment 的 id (建議用 id 排序會更準確，但這裡先用 log_tim)
+    $checkSql = "SELECT spd FROM " . DB_TABLE . " WHERE dev_id = ? ORDER BY log_tim DESC LIMIT 3";
+    
+    if ($checkStmt = $conn->prepare($checkSql)) {
+        $checkStmt->bind_param("s", $device_id);
+        $checkStmt->execute();
+        $result = $checkStmt->get_result();
+        
+        $lowSpeedCount = 0;
+        $rowCount = 0;
+        
+        while ($row = $result->fetch_assoc()) {
+            $rowCount++;
+            if ($row['spd'] < 5) {
+                $lowSpeedCount++;
+            }
+        }
+        $checkStmt->close();
 
+        // 條件：必須「找得到 3 筆資料」且「這 3 筆的速度都小於 5」才略過
+        // 如果資料庫只有 1 筆資料，即使它小於 5，也不構成「連續 3 筆」，所以還是會寫入 (避免剛啟動時沒紀錄)
+        if ($rowCount == 3 && $lowSpeedCount == 3) {
+            echo "SKIPPED (Stationary)"; // 回應略過訊息
+            $conn->close();
+            exit; // 直接結束程式，不執行下方的 INSERT
+        }
+    }
+}
+// ==========================================
+// [結束] 靜止過濾檢查
+// ==========================================
 // 4. 防止 SQL Injection，使用 prepared statement
 $stmt = $conn->prepare("INSERT INTO " . DB_TABLE . " (dev_id, lat, lng, spd, cog, satcnt, log_tim) VALUES (?, ?, ?, ?, ?, ?, ?)");
 if (!$stmt) {
