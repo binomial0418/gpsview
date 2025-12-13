@@ -394,7 +394,8 @@ function updateInfoBar(point) {
 
 document.getElementById('info-bar').addEventListener('click', function() {
     if (isValid(currentLat) && isValid(currentLng)) {
-        window.open(`http://googleusercontent.com/maps.google.com/?q=${currentLat},${currentLng}`, '_blank');
+        window.open(`https://www.google.com/maps/search/?api=1&query=${currentLat},${currentLng}`, '_blank');
+
     }
 });
 
