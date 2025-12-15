@@ -133,6 +133,13 @@ if (isset($_GET['ajax'])) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="GPS軌跡">
+<link rel="apple-touch-icon" href="gps.png">
+<link rel="apple-touch-icon" sizes="180x180" href="gps.png">
+<link rel="icon" type="image/png" href="gps.png">
+<link rel="shortcut icon" type="image/png" href="gps.png">
 <title>GPS 智慧軌跡系統</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"/>
