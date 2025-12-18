@@ -599,15 +599,30 @@ function processSegments(points) {
     renderList();
 }
 
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; // 地球半徑 (km)
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
 function renderList() {
     const p = document.getElementById('segmentPanel');
     p.innerHTML = '';
     segments.forEach((seg, i) => {
+        let dist = 0;
+        for(let k=1; k<seg.length; k++) {
+            dist += getDistanceFromLatLonInKm(parseFloat(seg[k-1].lat), parseFloat(seg[k-1].lng), parseFloat(seg[k].lat), parseFloat(seg[k].lng));
+        }
         const div = document.createElement('div');
         div.className = 'segment-item';
         const start = seg[0].log_tim.substring(11, 16);
         const end = seg[seg.length-1].log_tim.substring(11, 16);
-        div.innerHTML = `<span>軌跡 ${i+1}</span> <span style="color:#666">${start}-${end} (${seg.length})</span>`;
+        div.innerHTML = `<span>軌跡 ${i+1}</span> <span style="color:#666">${start}-${end} (${dist.toFixed(1)} km)</span>`;
         div.onclick = () => selectSegment(i);
         p.appendChild(div);
     });
