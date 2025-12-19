@@ -32,14 +32,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username'], $_POST['p
     $u = trim($_POST['username']);
     $p = $_POST['password'];
     
-    if (isset(AUTH_USERS[$u]) && AUTH_USERS[$u]['enabled'] && password_verify($p, AUTH_USERS[$u]['hash'])) {
-        session_regenerate_id(true);
-        $_SESSION['authenticated'] = true;
-        $_SESSION['username'] = $u;
-        $_SESSION['login_time'] = time();
-        header('Location: ' . $_SERVER['PHP_SELF']);
-        exit;
+    // 從資料庫驗證帳密
+    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+    if ($conn->connect_error) {
+        $loginError = '系統錯誤，請稍後再試';
     } else {
+        $stmt = $conn->prepare("SELECT " . AUTH_DB_PASS_COLUMN . " FROM " . AUTH_DB_TABLE . " WHERE " . AUTH_DB_USER_COLUMN . " = ? LIMIT 1");
+        $stmt->bind_param('s', $u);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($result->num_rows === 1) {
+            $row = $result->fetch_assoc();
+            // 明碼比對
+            if ($row[AUTH_DB_PASS_COLUMN] === $p) {
+                session_regenerate_id(true);
+                $_SESSION['authenticated'] = true;
+                $_SESSION['username'] = $u;
+                $_SESSION['login_time'] = time();
+                $stmt->close();
+                $conn->close();
+                header('Location: ' . $_SERVER['PHP_SELF']);
+                exit;
+            }
+        }
+        
+        $stmt->close();
+        $conn->close();
         $loginError = '帳號或密碼錯誤';
     }
 }
