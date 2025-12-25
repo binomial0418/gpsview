@@ -1,0 +1,18 @@
+# 敏感設定檔
+.env.php
+
+# 舊版或開發用單元檔
+debug.php
+gps_view.php
+index_road_rec.php
+index-v1.php
+generate_password_hash.php
+# 系統與編輯器檔案
+.DS_Store
+.vscode/
+*.log
+
+# 暫存或未使用的資源
+gps 2.png
+
+SECURITY.md
