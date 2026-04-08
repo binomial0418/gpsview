@@ -11,8 +11,10 @@ generate_password_hash.php
 .DS_Store
 .vscode/
 *.log
+CLAUDE.md
 
 # 暫存或未使用的資源
 gps 2.png
 
 SECURITY.md
+PROGRESS.md

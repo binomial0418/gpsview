@@ -19,14 +19,77 @@ if (!file_exists(__DIR__ . '/.env.php')) {
 }
 require_once __DIR__ . '/.env.php';
 
-// 3. 處理登出
+// 3a. Helper：設定 / 清除持久 cookie
+function setRememberCookie($token, $expires) {
+    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+              (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+    setcookie('gps_rmb', $token, [
+        'expires'  => $expires,
+        'path'     => '/',
+        'httponly' => true,
+        'secure'   => $secure,
+        'samesite' => 'Lax',
+    ]);
+}
+
+// 3b. 持久登入驗證 (iOS PWA 每次啟動 session 會消失，改用 cookie token)
+if (!(isset($_SESSION['authenticated']) && $_SESSION['authenticated'] === true)) {
+    if (!empty($_COOKIE['gps_rmb']) && preg_match('/^[0-9a-f]{64}$/', $_COOKIE['gps_rmb'])) {
+        $rmb  = $_COOKIE['gps_rmb'];
+        $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        if (!$conn->connect_error) {
+            $stmt = $conn->prepare(
+                "SELECT " . AUTH_DB_USER_COLUMN . " FROM " . AUTH_DB_TABLE .
+                " WHERE remember_token = ? AND remember_expires > NOW() LIMIT 1"
+            );
+            $stmt->bind_param('s', $rmb);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            if ($res->num_rows === 1) {
+                $row = $res->fetch_assoc();
+                session_regenerate_id(true);
+                $_SESSION['authenticated'] = true;
+                $_SESSION['username']      = $row[AUTH_DB_USER_COLUMN];
+                $_SESSION['login_time']    = time();
+                // 滑動延長 token 有效期 30 天
+                $newExp    = time() + 30 * 24 * 3600;
+                $newExpStr = date('Y-m-d H:i:s', $newExp);
+                $stmt2 = $conn->prepare(
+                    "UPDATE " . AUTH_DB_TABLE . " SET remember_expires = ? WHERE remember_token = ?"
+                );
+                $stmt2->bind_param('ss', $newExpStr, $rmb);
+                $stmt2->execute();
+                $stmt2->close();
+                setRememberCookie($rmb, $newExp);
+            }
+            $stmt->close();
+            $conn->close();
+        }
+    }
+}
+
+// 4. 處理登出
 if (isset($_GET['logout'])) {
+    if (!empty($_COOKIE['gps_rmb']) && preg_match('/^[0-9a-f]{64}$/', $_COOKIE['gps_rmb'])) {
+        $rmb  = $_COOKIE['gps_rmb'];
+        $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        if (!$conn->connect_error) {
+            $stmt = $conn->prepare(
+                "UPDATE " . AUTH_DB_TABLE . " SET remember_token = NULL, remember_expires = NULL WHERE remember_token = ?"
+            );
+            $stmt->bind_param('s', $rmb);
+            $stmt->execute();
+            $stmt->close();
+            $conn->close();
+        }
+        setRememberCookie('', time() - 3600); // 刪除 cookie
+    }
     session_destroy();
     header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
     exit;
 }
 
-// 4. 處理登入 POST
+// 5. 處理登入 POST
 $loginError = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username'], $_POST['password'])) {
     $u = trim($_POST['username']);
@@ -50,6 +113,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username'], $_POST['p
                 $_SESSION['authenticated'] = true;
                 $_SESSION['username'] = $u;
                 $_SESSION['login_time'] = time();
+                // 生成持久 token，讓 iOS PWA 下次啟動不需重新登入
+                $token   = bin2hex(random_bytes(32));
+                $exp     = time() + 30 * 24 * 3600;
+                $expStr  = date('Y-m-d H:i:s', $exp);
+                $stmt2 = $conn->prepare(
+                    "UPDATE " . AUTH_DB_TABLE . " SET remember_token = ?, remember_expires = ? WHERE " . AUTH_DB_USER_COLUMN . " = ?"
+                );
+                $stmt2->bind_param('sss', $token, $expStr, $u);
+                $stmt2->execute();
+                $stmt2->close();
+                setRememberCookie($token, $exp);
                 $stmt->close();
                 $conn->close();
                 header('Location: ' . $_SERVER['PHP_SELF']);
