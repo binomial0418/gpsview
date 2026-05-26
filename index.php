@@ -445,7 +445,37 @@ const isLoggedIn = <?php echo $isLoggedIn ? 'true' : 'false'; ?>;
 // --- 初始化 ---
 function initApp() {
     map = L.map('map', { zoomControl: false }).setView([24.2, 120.6], mapZoom);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(map);
+    
+    // 定義各個底圖圖層
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+        attribution: '© OSM' 
+    });
+    
+    const googleRoadmap = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { 
+        attribution: '© Google' 
+    });
+    
+    const googleSatellite = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { 
+        attribution: '© Google' 
+    });
+    
+    const googleTraffic = L.tileLayer('https://mt1.google.com/vt/lyrs=m,traffic&x={x}&y={y}&z={z}', { 
+        attribution: '© Google' 
+    });
+
+    // 預設將 Google 路況圖層加入地圖
+    googleTraffic.addTo(map);
+    
+    // 建立圖層切換器
+    const baseMaps = {
+        "OpenStreetMap": osmLayer,
+        "Google 一般地圖": googleRoadmap,
+        "Google 衛星圖": googleSatellite,
+        "Google 路況地圖": googleTraffic
+    };
+    
+    L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+    
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     map.on('zoomend', () => { mapZoom = map.getZoom(); });
     trackLayer.addTo(map);
